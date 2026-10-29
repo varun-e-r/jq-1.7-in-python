@@ -1,0 +1,32 @@
+artifacts = ["/app"]  # the candidate tree; the verifier copies it and runs /app/jq on hidden cases
+
+schema_version = "2.0"
+
+[task]
+name = "samples/jq-1.7-in-python"
+description = "Reimplement the jq 1.7.1 command-line JSON processor in pure Python, graded differentially against 2417 hidden runs recorded from the real jq binary."
+
+[metadata]
+difficulty = "hard"
+category = "software-engineering"
+subcategory = "language-implementation"
+tags = ["jq", "interpreter", "parser", "json", "generators", "path-expressions", "regex", "differential-testing", "python"]
+expert_time_estimate_hours = 16
+difficulty_explanation = "The agent writes a complete interpreter for a real language: a lexer and precedence parser that matches jq 1.7.1's grammar quirks (try binds tighter than every binary operator, comparison operators do not chain, ?// is one token), a lazy generator evaluator with jq's cartesian ordering rules, closures and recursion, path tracking with jq's value-at-path identity checks that decide which path expressions are legal, the assignment operators built on that tracking, about 150 builtins, Oniguruma-style regex iteration, and a JSON reader and writer that reproduce jq's literal number preservation and its dtoa output format. Most of the difficulty is fidelity. Error messages that reach stdout carry jq's exact wording and its 11-byte value truncation, input parse errors report byte columns, empty regex matches step through UTF-8 one byte at a time, and the exit status depends on which input was last and on -e. None of this can be looked up offline; the agent has 1197 recorded runs and must generalise from them to 2417 hidden ones, a third of whose program templates it never sees. A strong engineer who knows jq well needs roughly two working days to get most of the surface exact."
+solution_explanation = "The reference in solution/pyjq is a full implementation, not a shim. jv.py holds the value model (floats plus a Lit subclass carrying decimal text), jq's ordering, the dtoa-style printer and a port of the jv_parse state machine with its error messages. lang.py has the lexer, a precedence-climbing parser that follows jq 1.7.1's yacc precedences, a resolver for compile-time undefined-symbol errors, and the generator evaluator; path mode yields (value, value_at_path, path) so path operations can apply jq's identity check, and |=, =, op= and //= follow jq's _modify and _assign definitions. builtins.py implements the C builtins with jq's argument ordering (last argument varies slowest), formats, libm math through ctypes for bit-identical results, regex via translated Python patterns with Oniguruma's empty-match stepping, and a jq-language prelude with the jq-defined builtins. cli.py reproduces option parsing and the exit status rules of jq's main()."
+verification_explanation = "Hidden cases are generated from seeded document generators, hand-written program templates, a fixed CLI list and a random program fuzzer, then run through the official jq 1.7.1 release binary to record stdout and exit status. A case is kept only when the independent Python reference reproduces jq exactly; across about 3600 candidate runs only jq crashes and two jq backtracking bugs were dropped. The verifier copies /app to a root-owned staging tree, rejects binary or oversized files and an untouched starter, then runs every case as nobody in its own session with a 10 second limit, reaps leftover processes, and compares stdout bytes and exit status exactly. The reward is the mean over nine categories of the fraction passed, written by root to reward.txt and reward.json; the hidden cases never exist in the agent image."
+relevant_experience = "Language implementation (parsers, interpreters, generator-based evaluation), deep familiarity with jq semantics, and experience building differential test harnesses against a reference binary."
+
+[verifier]
+timeout_sec = 2400.0
+environment_mode = "separate"
+
+[agent]
+timeout_sec = 72000.0
+
+[environment]
+build_timeout_sec = 900.0
+cpus = 4
+memory_mb = 8192
+storage_mb = 10240
+gpus = 0

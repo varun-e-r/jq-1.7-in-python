@@ -1,0 +1,4 @@
+FROM python:3.12-slim-bookworm
+ARG JQ=jq-linux-arm64
+COPY $JQ /usr/local/bin/jq
+WORKDIR /work
